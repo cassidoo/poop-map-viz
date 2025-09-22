@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Cassidy's Poop Map History</title>
+		<style>
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+					sans-serif;
+				margin: 2rem;
+				background: #f5f5f5;
+			}
+			h1,
+			p {
+				text-align: center;
+			}
+			a {
+				color: brown;
+				text-decoration: wavy;
+			}
+			.grid {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				max-width: 1200px;
+				margin: 5em auto;
+			}
+			.poop {
+				font-size: 24px;
+				cursor: pointer;
+				position: relative;
+				transition: transform 0.2s;
+			}
+			.poop:hover,
+			.poop:focus {
+				transform: scale(1.2);
+				outline: none;
+			}
+			.popup {
+				position: absolute;
+				bottom: 100%;
+				left: 50%;
+				transform: translateX(-50%);
+				background: white;
+				padding: 1rem;
+				border-radius: 8px;
+				box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+				width: 200px;
+				display: none;
+				z-index: 1000;
+				font-size: 14px;
+				line-height: 1.4;
+			}
+			.poop:hover .popup,
+			.poop:focus .popup {
+				display: block;
+			}
+			.date {
+				font-weight: bold;
+				margin-bottom: 0.5rem;
+			}
+			.note {
+				margin-bottom: 0.5rem;
+			}
+			.rating {
+				color: #666;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Cassidy's Poop Map History</h1>
+		<p>2000 poops, spanning 12 countries, over 5+ years.</p>
+		<p>Data courtesy of <a href="https://poopmap.net/">Poop Map</a> 🤎</p>
+		<p>
+			Learn why Cassidy even has this data
+			<a href="https://cassidoo.co/post/two-thousand-poops">on her blog</a>.
+		</p>
+
+		<div class="grid" id="poopGrid"></div>
+
+		<script>
+			function parseCSV(text) {
+				const rows = [];
+				let currentRow = ["", "", ""]; // [timestamp, note, rating]
+				let currentField = "";
+				let fieldIndex = 0;
+				let inQuotes = false;
+
+				for (let i = 0; i < text.length; i++) {
+					const char = text[i];
+					const nextChar = text[i + 1];
+
+					if (char === '"') {
+						if (nextChar === '"') {
+							// Handle escaped quotes
+							currentField += '"';
+							i++; // Skip next quote
+						} else {
+							inQuotes = !inQuotes;
+						}
+					} else if (char === "," && !inQuotes) {
+						currentRow[fieldIndex] = currentField.trim();
+						currentField = "";
+						fieldIndex++;
+					} else if (char === "\n" && !inQuotes) {
+						currentRow[fieldIndex] = currentField.trim();
+						if (currentRow[0] && currentRow[0] !== "Timestamp") {
+							// Skip header and empty rows
+							rows.push([...currentRow]);
+						}
+						currentRow = ["", "", ""];
+						currentField = "";
+						fieldIndex = 0;
+					} else {
+						currentField += char;
+					}
+				}
+
+				// Handle last row
+				if (currentField) {
+					currentRow[fieldIndex] = currentField.trim();
+					if (currentRow[0] && currentRow[0] !== "Timestamp") {
+						rows.push([...currentRow]);
+					}
+				}
+
+				return rows;
+			}
+
+			async function loadData() {
+				const response = await fetch("poop-export-9-21.csv");
+				const text = await response.text();
+				const rows = parseCSV(text);
+				let entryCount = 0;
+				let errorCount = 0;
+
+				const grid = document.getElementById("poopGrid");
+
+				// // Add stats display at the top
+				// const statsDiv = document.createElement("div");
+				// statsDiv.style.textAlign = "center";
+				// statsDiv.style.marginBottom = "20px";
+				// statsDiv.style.fontSize = "16px";
+				// document.body.insertBefore(statsDiv, grid);
+
+				rows.forEach((row, index) => {
+					try {
+						const [timestamp, note, rating] = row;
+
+						// Validate timestamp
+						const date = new Date(timestamp);
+						if (isNaN(date.getTime())) {
+							console.warn(`Invalid date in row ${index + 2}:`, timestamp);
+							errorCount++;
+							return;
+						}
+
+						// Skip entries with missing or invalid ratings
+						if (!rating || rating.trim() === "" || isNaN(parseFloat(rating))) {
+							console.warn(
+								`Missing or invalid rating in row ${index + 2}:`,
+								`"${rating}" (type: ${typeof rating})`
+							);
+							errorCount++;
+							return;
+						}
+
+						entryCount++;
+
+						const formattedDate = date.toLocaleDateString("en-US", {
+							year: "numeric",
+							month: "short",
+							day: "2-digit",
+						});
+
+						const poopElement = document.createElement("div");
+						poopElement.className = "poop";
+						poopElement.tabIndex = 0;
+						poopElement.innerHTML = `
+							💩
+							<div class="popup">
+								<div class="date">${formattedDate}</div>
+								<div class="note">${escapeHtml(note)}</div>
+								<div class="rating">${"⭐".repeat(Math.round(parseFloat(rating)))}</div>
+							</div>
+						`;
+
+						grid.appendChild(poopElement);
+					} catch (error) {
+						console.warn(`Error processing row ${index + 2}:`, row, error);
+						errorCount++;
+					}
+				});
+
+				// statsDiv.innerHTML = `Showing ${entryCount} entries${
+				// 	errorCount ? ` (${errorCount} entries skipped due to errors)` : ""
+				// }`;
+			}
+
+			function escapeHtml(unsafe) {
+				if (typeof unsafe !== "string") return "";
+				return unsafe
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#039;")
+					.replace(/\r\n/g, "<br>")
+					.replace(/\n/g, "<br>")
+					.replace(/\r/g, "<br>");
+			}
+
+			loadData();
+		</script>
+	</body>
+</html>

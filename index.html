@@ -37,6 +37,14 @@
 				transform: scale(1.2);
 				outline: none;
 			}
+			.poop:first-child .popup {
+				width: 380px;
+			}
+			@media (max-width: 500px) {
+				.poop:first-child .popup {
+					width: 250px;
+				}
+			}
 			.popup {
 				position: absolute;
 				bottom: 100%;
@@ -65,6 +73,15 @@
 			}
 			.rating {
 				color: #666;
+			}
+			.popup.align-left {
+				left: 0;
+				transform: none;
+			}
+			.popup.align-right {
+				left: auto;
+				right: 0;
+				transform: none;
 			}
 		</style>
 	</head>
@@ -128,6 +145,29 @@
 				return rows;
 			}
 
+			function adjustPopupPosition(poopElement, popup) {
+				const grid = document.getElementById("poopGrid");
+				const gridStyles = window.getComputedStyle(grid);
+				const gap = parseInt(gridStyles.gap) || 8;
+				const gridWidth = grid.offsetWidth;
+				const poopWidth = poopElement.offsetWidth;
+				const poopRect = poopElement.getBoundingClientRect();
+				const gridRect = grid.getBoundingClientRect();
+
+				const children = Array.from(grid.children);
+				const index = children.indexOf(poopElement);
+				const columns = Math.floor(gridWidth / (poopWidth + gap));
+				if (columns < 2) return;
+				const col = index % columns;
+
+				popup.classList.remove("align-left", "align-right");
+				if (col < 5) {
+					popup.classList.add("align-left");
+				} else if (col >= columns - 5) {
+					popup.classList.add("align-right");
+				}
+			}
+
 			async function loadData() {
 				const response = await fetch("poop-export-9-21.csv");
 				const text = await response.text();
@@ -185,6 +225,14 @@
 								<div class="rating">${"⭐".repeat(Math.round(parseFloat(rating)))}</div>
 							</div>
 						`;
+
+						const popup = poopElement.querySelector(".popup");
+						poopElement.addEventListener("mouseenter", () =>
+							adjustPopupPosition(poopElement, popup)
+						);
+						poopElement.addEventListener("focus", () =>
+							adjustPopupPosition(poopElement, popup)
+						);
 
 						grid.appendChild(poopElement);
 					} catch (error) {
